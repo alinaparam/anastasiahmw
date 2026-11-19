@@ -582,7 +582,8 @@ video{width:100%;border-radius:18px;display:block;background:#000;margin-bottom:
 <section class="sec" id="t3">
   <div class="sec-head"><span class="step">3</span><h2>Video: Kate’s holiday</h2></div>
   <p class="ru">Посмотри видео: 5 коротких диалогов — отель, номер, кафе, магазин, такси. Субтитров нет, только слушаем. Потом ответь на вопросы. Видео можно смотреть несколько раз.</p>
-  <video controls preload="metadata" src="holiday.mp4"></video>
+  <video controls playsinline preload="metadata" poster="holiday-poster.jpg" src="holiday.mp4" type="video/mp4"></video>
+  <p class="ru" style="margin:-4px 0 12px">Видео не показывается? <a href="holiday.mp4" target="_blank" style="color:var(--acc-ink);font-weight:800">Открой его отдельно ↗</a> или открой эту страницу в Safari.</p>
   <div class="block" style="margin-top:0"><div class="bl-head"><div><span class="tag li">Video</span><h3>Choose</h3></div><div class="score" id="s3"></div></div><ol class="items" id="VQ"></ol></div>
 </section>
 
@@ -600,7 +601,7 @@ const AUD = {"d0": "data:audio/mpeg;base64,//NkxAAAAANIAAAAAExBTUVVVVUAyISIUiYOC
 const IMG = {};
 const ALL = new Set();
 function stopAll(){ ALL.forEach(a => a.pause()); }
-function play(k, r = 1){ if (!AUD[k]) return; stopAll(); const a = new Audio(AUD[k]); ALL.add(a); a.playbackRate = r; a.play(); return a; }
+const AC = {}; function play(k, r = 1){ if (!AUD[k]) return; stopAll(); const a = AC[k] || (AC[k] = new Audio(AUD[k])); ALL.add(a); try { a.currentTime = 0; } catch (e) {} a.playbackRate = r; a.play(); return a; }
 let pts = 0; function point(){ pts++; const p = $('#ptsN'); p.textContent = pts; p.parentElement.classList.add('bump'); setTimeout(() => p.parentElement.classList.remove('bump'), 200); }
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const norm = s => s.toLowerCase().replace(/[’‘`]/g, "'").replace(/[.,!?]/g, ' ').replace(/\bisn't\b/g, 'is not').replace(/\baren't\b/g, 'are not').replace(/\bit's\b/g, 'it is').replace(/\bthey're\b/g, 'they are').replace(/\bi'm\b/g, 'i am').replace(/\bshe's\b/g, 'she is').replace(/\bhe's\b/g, 'he is').replace(/\s+/g, ' ').trim();
@@ -674,13 +675,13 @@ $('#DW').innerHTML = W.map((w, i) => `<div class="r" data-i="${i}"><span class="
 $('#DS').innerHTML = SS.map((w, i) => `<div class="r" data-i="${i}"><span class="n">${i + 1}</span><button data-p="ds${i}" aria-label="play">▶</button><button class="sl" data-p="ds${i}" data-r="0.75" aria-label="slow">🐢</button><input autocomplete="off" autocapitalize="off" spellcheck="false"></div>`).join('');
 document.addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (b) play(b.dataset.p, b.dataset.r ? +b.dataset.r : 1); });
 document.querySelectorAll('.dw input, .ds input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter'){ const all = [...inp.closest('.dw, .ds').querySelectorAll('input')]; const n = all[all.indexOf(inp) + 1]; if (n){ n.focus(); n.closest('.r').querySelector('[data-p]').click(); } } }));
-function check(key, box, list, label){
+function check(key, box, list, label, quiet){
   const rows = [...box.querySelectorAll('.r')]; const empty = rows.filter(r => !r.querySelector('input').value.trim()).length;
-  if (empty && !confirm(`Пустых ответов: ${empty}. Всё равно проверить?`)) return;
+  if (empty && !quiet && !confirm(`Пустых ответов: ${empty}. Всё равно проверить?`)) return;
   let ok = 0; rows.forEach((r, i) => { const inp = r.querySelector('input'), good = nn(inp.value) === nn(list[i]); r.classList.remove('ok', 'bad'); r.querySelector('.fx')?.remove();
     r.classList.add(good ? 'ok' : 'bad'); if (good) ok++; else { r.insertAdjacentHTML('beforeend', `<div class="fx">→ ${list[i]}</div>`); if (!SC[key].done) MIST.push(`[${label}] «${inp.value.trim() || '—'}», правильно «${list[i]}»`); } });
   if (!SC[key].done){ SC[key].ok = ok; SC[key].done = true; for (let k = 0; k < ok; k++) point(); }
-  $('#s' + key[1]).textContent = `${ok} / ${list.length}`; upd(); }
+  $('#s' + key[1]).textContent = `${ok} / ${list.length}`; upd(); if (!quiet) save(); }
 SC.t1.max = W.length; SC.t2.max = SS.length;
 $('#c1').onclick = () => check('t1', $('#DW'), W, 'слова'); $('#c2').onclick = () => check('t2', $('#DS'), SS, 'предложения');
 const VQ = [{ s: 'What is Kate’s room number?', a: '207', o: ['702', '207', '270'] }, { s: 'How many nights does Kate stay?', a: 'five', o: ['three', 'five', 'seven'] },
@@ -696,11 +697,21 @@ const VQ = [{ s: 'What is Kate’s room number?', a: '207', o: ['702', '207', '2
   { s: 'How much is the taxi?', a: '15 euros', o: ['5 euros', '15 euros', '50 euros'] }];
 SC.t3.max = VQ.length;
 choice($('#VQ'), $('#s3'), VQ.map(q => ({ ...q, keep: true })));
-$('#VQ').addEventListener('click', e => { const b = e.target.closest('.o button'); if (!b) return; setTimeout(() => { const lis = [...$('#VQ').children]; let ok = 0, done = 0;
+$('#VQ').addEventListener('click', e => { const b = e.target.closest('.o button'); if (!b) return; const li0 = b.closest('li'), bt = b.textContent; setTimeout(() => { const lis = [...$('#VQ').children]; let ok = 0, done = 0;
   lis.forEach((li, i) => { if (li.classList.contains('ok')) ok++; if (li.classList.contains('ok') || li.classList.contains('bad')) done++; });
-  const li = b.closest('li'), i = lis.indexOf(li); if (li.classList.contains('bad') && !li.dataset.m){ li.dataset.m = 1; MIST.push(`[видео] ${VQ[i].s} — «${b.textContent}», правильно «${VQ[i].a}»`); }
-  SC.t3.ok = ok; SC.t3.done = done > 0; upd(); }, 0); });
+  const li = li0, i = lis.indexOf(li); if (li.classList.contains('bad') && !li.dataset.m){ li.dataset.m = 1; MIST.push(`[видео] ${VQ[i].s} — «${bt}», правильно «${VQ[i].a}»`); }
+  SC.t3.ok = ok; SC.t3.done = done > 0; upd(); }, 0); }, true);
 upd();
+/* autosave: answers survive a page reload */
+const SK = 'nastya-holiday-v1';
+function save(){ try { localStorage.setItem(SK, JSON.stringify({ w: [...document.querySelectorAll('#DW input')].map(i => i.value), s: [...document.querySelectorAll('#DS input')].map(i => i.value),
+  c1: SC.t1.done, c2: SC.t2.done, v: [...$('#VQ').children].map(li => li.dataset.pick ?? null) })); } catch (e) {} }
+document.querySelectorAll('#DW input, #DS input').forEach(i => i.addEventListener('input', save));
+$('#VQ').addEventListener('click', e => { const b = e.target.closest('.o button'); if (!b) return; const li = b.closest('li'); li.dataset.pick = [...li.querySelectorAll('.o button')].indexOf(b); setTimeout(save, 10); }, true);
+(() => { let d; try { d = JSON.parse(localStorage.getItem(SK) || 'null'); } catch (e) {} if (!d) return;
+  document.querySelectorAll('#DW input').forEach((i, k) => i.value = d.w?.[k] || ''); document.querySelectorAll('#DS input').forEach((i, k) => i.value = d.s?.[k] || '');
+  if (d.c1) check('t1', $('#DW'), W, 'слова', true); if (d.c2) check('t2', $('#DS'), SS, 'предложения', true);
+  [...$('#VQ').children].forEach((li, k) => { const n = d.v?.[k]; if (n != null){ const b = li.querySelectorAll('.o button')[n]; if (b) b.click(); } }); })();
 const SEND_URL = 'https://script.google.com/macros/s/AKfycby4sacYRD9z4OLLtRosPU0xPdJqrm03axtxiHspuuy1RjORxGvqhRwj5iYqPi004zNq/exec';
 $('#sendB').onclick = async () => { let ok = 0, mx = 0; for (const k in SC){ ok += SC[k].ok; mx += SC[k].max; }
   if (!Object.values(SC).some(s => s.done)){ $('#sendMsg').textContent = 'Сначала сделай задания 🙂'; return; }
